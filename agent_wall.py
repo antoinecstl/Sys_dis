@@ -181,7 +181,7 @@ class Agent(Node):
             sensor_range = min(distance, sensor_max_range)  # Utilise la distance mesurée ou la portée maximale
             
             # Itérer sur la distance depuis le robot jusqu'à l'obstacle ou la portée maximale du capteur
-            for d in np.linspace(0, sensor_range, num=int(sensor_range / self.map_msg.info.resolution) + 1):
+            for d in np.linspace(self.robot_size/2, sensor_range, num=int(sensor_range / self.map_msg.info.resolution) + 1):
                 obstacle_x, obstacle_y = self.x + d * math.cos(self.yaw + angle_offset), self.y + d * math.sin(self.yaw + angle_offset)
                 
                 # Convertir en coordonnées de grille
@@ -191,6 +191,7 @@ class Agent(Node):
                     if d < distance:
                         # Marquer comme espace libre si on est pas encore à la distance de l'obstacle
                         self.map[grid_y, grid_x] = FREE_SPACE_VALUE
+
                     elif d == distance and distance < sensor_max_range:
                         # Marquer comme obstacle si la distance correspond à celle de l'obstacle détecté
                         self.map[grid_y, grid_x] = OBSTACLE_VALUE
@@ -235,7 +236,7 @@ class Agent(Node):
 
     def strategy(self):
         obstacle_distance = 1.5
-        desired_distance_from_wall = obstacle_distance -0.5
+        desired_distance_from_wall = 1.0
 
         # Initialiser un message Twist pour commander le robot
         cmd_vel = Twist()
@@ -247,15 +248,15 @@ class Agent(Node):
 
         if obstacle_front and not wall_on_right and not wall_on_left:
             # Si un obstacle est détecté devant, tourner à droite
-            cmd_vel.angular.z = -np.pi/2
+            cmd_vel.angular.z = 1.2
         
         elif obstacle_front and wall_on_left and not wall_on_right:
             # Si un obstacle est détecté devant et un mur a gauche, tourner à droite
-            cmd_vel.angular.z = -np.pi/2
+            cmd_vel.angular.z = -1.2
 
         elif obstacle_front and wall_on_right and not wall_on_left:
             # Si un obstacle est détecté devant et un mur a droite, tourner à gauche
-            cmd_vel.angular.z = np.pi/2
+            cmd_vel.angular.z = 1.2
 
         elif obstacle_front and wall_on_right and wall_on_left:
             # Si cul de sac alors demi-tour
@@ -271,17 +272,13 @@ class Agent(Node):
                 getting_closer = self.left_dist < self.last_left_dist
                 getting_further = self.left_dist > self.last_left_dist
 
-                """if self.left_dist > self.last_left_dist + sudden_change_threshold:
-                    # Détecter la fin du mur à gauche
-                    cmd_vel.angular.z = np.pi/2 """
-
                 if self.left_dist > desired_distance_from_wall:
                     # Si le robot s'éloigne du mur, augmentez l'angle de rotation pour revenir vers le mur
                     cmd_vel.angular.z = 0.12 if getting_further else 0.01
                 elif self.left_dist < desired_distance_from_wall:
                     # Si le robot est trop proche, diminuez l'angle ou tournez légèrement à droite pour s'éloigner du mur
                     cmd_vel.angular.z = -0.12 if getting_closer else -0.01
-                cmd_vel.linear.x = 0.4
+                cmd_vel.linear.x = 0.3
 
             # Mise à jour de la dernière distance mesurée
             self.last_left_dist = self.left_dist
@@ -295,29 +292,26 @@ class Agent(Node):
                 getting_closer = self.right_dist < self.last_right_dist
                 getting_further = self.right_dist > self.last_right_dist
 
-                """ if self.right_dist > self.last_right_dist + sudden_change_threshold:
-                # Détecter la fin du mur à droite
-                    cmd_vel.angular.z = np.pi/2"""
-
                 if self.right_dist > desired_distance_from_wall:
                     # Si le robot s'éloigne du mur, diminuez l'angle de rotation pour revenir vers le mur
                     cmd_vel.angular.z = -0.12 if getting_further else -0.01
                 elif self.right_dist < desired_distance_from_wall:
                     # Si le robot est trop proche, augmentez l'angle ou tournez légèrement à gauche pour s'éloigner du mur
                     cmd_vel.angular.z = 0.12 if getting_closer else 0.01
-                cmd_vel.linear.x = 0.4
+                cmd_vel.linear.x = 0.3
 
             # Mise à jour de la dernière distance mesurée
             self.last_right_dist = self.right_dist
         
         else:
             # Si aucun mur n'est détecté
+            # Rotation si perte de mur
             if self.last_bool_right :
-                cmd_vel.angular.z = -1.0
+                cmd_vel.angular.z = -1.1
             elif self.last_bool_left :
-                cmd_vel.angular.z = 1.0
+                cmd_vel.angular.z = 1.1
             else :
-                cmd_vel.linear.x = 0.5   
+                cmd_vel.linear.x = 0.4   
 
         self.last_bool_left = wall_on_left
         self.last_bool_right = wall_on_right
